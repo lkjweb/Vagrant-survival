@@ -1,7 +1,15 @@
+local LP = game:GetService("Players").LocalPlayer
+local PlayerGui = LP:WaitForChild("PlayerGui")
+
+-- Удаляем старое меню, если оно было
+if PlayerGui:FindFirstChild("TWKS_DeviceSelector") then
+    PlayerGui.TWKS_DeviceSelector:Destroy()
+end
+
 local DS = Instance.new("ScreenGui")
 DS.Name = "TWKS_DeviceSelector"
 DS.ResetOnSpawn = false
-pcall(function() DS.Parent = game:GetService("CoreGui") end)
+DS.Parent = PlayerGui
 
 local MF = Instance.new("Frame")
 MF.Name = "MainFrame"
@@ -50,11 +58,11 @@ styleBtn(PBtn, UDim2.new(0, 20, 0, 75), "🖥️ PC\n(Neverlose)")
 styleBtn(MBtn, UDim2.new(0, 185, 0, 75), "📱 MOBILE\n(Orion UI)")
 
 local C = {SA=false,FR=100,NR=false,NS=false,AF=false,EP=false,EB=false,EW=false,IJ=false,SH=false}
-local Plrs, LP, Cam, RS, UIS = game:GetService("Players"), game:GetService("Players").LocalPlayer, workspace.CurrentCamera, game:GetService("RunService"), game:GetService("UserInputService")
+local Plrs, Cam, RS, UIS = game:GetService("Players"), workspace.CurrentCamera, game:GetService("RunService"), game:GetService("UserInputService")
 
 local FC = Instance.new("Frame")
 FC.Name = "FovCircle"; FC.AnchorPoint = Vector2.new(0.5,0.5); FC.BackgroundColor3 = Color3.fromRGB(255,75,75); FC.BackgroundTransparency = 0.96; FC.Visible = false
-pcall(function() FC.Parent = Instance.new("ScreenGui", game:GetService("CoreGui")) end)
+FC.Parent = DS
 local FB = Instance.new("UIStroke", FC); FB.Color = Color3.fromRGB(255,75,75); FB.Thickness = 1.5; Instance.new("UICorner", FC).CornerRadius = UDim2.new(1,0)
 
 local function IsVis(char)
@@ -92,9 +100,9 @@ local function Init(isMob)
         RS.RenderStepped:Connect(function()
             if C.SA and UIS:IsMouseButtonPressed(Enum.MouseButton.LeftParameter) then
                 local t = GetTarget()
-                if t and t.Character and t.Character:FindFirstChild("Head") and IsVis(t.Character) then Cam.CFrame = CFrame.new(Cam.CFrame.Position, t.Character.Head.Position) end
 
-end
+if t and t.Character and t.Character:FindFirstChild("Head") and IsVis(t.Character) then Cam.CFrame = CFrame.new(Cam.CFrame.Position, t.Character.Head.Position) end
+            end
         end)
     else
         oldNamecall = hookmetamethod(game, "__namecall", function(Self, ...)
@@ -154,10 +162,10 @@ end
         if C.EP or C.EW then
             for _, p in pairs(Plrs:GetPlayers()) do
                 if p ~= LP and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
-                    local d = math.floor((LP.Character.HumanoidRootPart.Position - p.Character.HumanoidRootPart.Position).Magnitude / 3.5)
-                    local tl = p.Character:FindFirstChildOfClass("Tool")
 
-local str = (C.EP and p.Name.." ["..math.floor(p.Character.Humanoid.Health).."HP] ("..d.."m)" or "")..(C.EW and "\n"..(tl and tl.Name or "Fists") or "")
+local d = math.floor((LP.Character.HumanoidRootPart.Position - p.Character.HumanoidRootPart.Position).Magnitude / 3.5)
+                    local tl = p.Character:FindFirstChildOfClass("Tool")
+                    local str = (C.EP and p.Name.." ["..math.floor(p.Character.Humanoid.Health).."HP] ("..d.."m)" or "")..(C.EW and "\n"..(tl and tl.Name or "Fists") or "")
                     UpdESP(p.Character.HumanoidRootPart, str, "P", p.UserId)
                 elseif PCache[p.UserId] then PCache[p.UserId].Enabled = false end
             end
@@ -188,11 +196,10 @@ PBtn.MouseButton1Click:Connect(function()
     v:AddToggle({Name = "ESP Weapons", Callback = function(s) C.EW = s end})
     v:AddToggle({Name = "ESP Backpacks", Callback = function(s) C.EB = s end})
     local c = w:CreateTab({Name = "Character"})
-    c:AddToggle({Name = "Infinite Jump", Callback = function(s) C.IJ = s end})
-    c:AddToggle({Name = "Safe Speed", Callback = function(s) C.SH = s end})
+    c:AddToggle({Name = "Infinite Jump", Callback = function(s) C.IJ = s end}) c:AddToggle({Name = "Safe Speed", Callback = function(s) C.SH = s end})
 end)
-
-MBtn.MouseButton1Click:Connect(function() DS:Destroy(); Init(true)
+MBtn.MouseButton1Click:Connect(function()
+DS:Destroy(); Init(true)
 local lib = loadstring(game:HttpGet('githubusercontent.com'))()
 local w = lib:MakeWindow({Name = "Vagrant | Mobile", HidePremium = true, SaveConfig = false})
 local r = lib:MakeTab({Name = "Rage", Icon = "rbxassetid://4483345906"})
