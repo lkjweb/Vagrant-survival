@@ -1,68 +1,10 @@
-local LP = game:GetService("Players").LocalPlayer
-local PlayerGui = LP:WaitForChild("PlayerGui")
-
--- Удаляем старое меню, если оно было
-if PlayerGui:FindFirstChild("TWKS_DeviceSelector") then
-    PlayerGui.TWKS_DeviceSelector:Destroy()
-end
-
-local DS = Instance.new("ScreenGui")
-DS.Name = "TWKS_DeviceSelector"
-DS.ResetOnSpawn = false
-DS.Parent = PlayerGui
-
-local MF = Instance.new("Frame")
-MF.Name = "MainFrame"
-MF.AnchorPoint = Vector2.new(0.5, 0.5)
-MF.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-MF.Position = UDim2.new(0.5, 0, 0.5, 0)
-MF.Size = UDim2.new(0, 340, 0, 180)
-MF.Visible = true
-MF.Parent = DS
-
-local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim2.new(0, 12)
-UICorner.Parent = MF
-
-local Title = Instance.new("TextLabel")
-Title.Name = "Title"
-Title.BackgroundTransparency = 1
-Title.Position = UDim2.new(0, 0, 0, 15)
-Title.Size = UDim2.new(1, 0, 0, 30)
-Title.Font = Enum.Font.Code
-Title.Text = "SELECT YOUR DEVICE"
-Title.TextColor3 = Color3.fromRGB(255, 75, 75)
-Title.TextSize = 18
-Title.Visible = true
-Title.Parent = MF
-
-local PBtn = Instance.new("TextButton")
-local MBtn = Instance.new("TextButton")
-
-local function styleBtn(b, p, t)
-    b.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-    b.Position = p
-    b.Size = UDim2.new(0, 135, 0, 65)
-    b.Font = Enum.Font.Code
-    b.Text = t
-    b.TextColor3 = Color3.fromRGB(255, 255, 255)
-    b.TextSize = 14
-    b.Visible = true
-    b.Parent = MF
-    local c = Instance.new("UICorner")
-    c.CornerRadius = UDim2.new(0, 8)
-    c.Parent = b
-end
-
-styleBtn(PBtn, UDim2.new(0, 20, 0, 75), "🖥️ PC\n(Neverlose)")
-styleBtn(MBtn, UDim2.new(0, 185, 0, 75), "📱 MOBILE\n(Orion UI)")
-
 local C = {SA=false,FR=100,NR=false,NS=false,AF=false,EP=false,EB=false,EW=false,IJ=false,SH=false}
-local Plrs, Cam, RS, UIS = game:GetService("Players"), workspace.CurrentCamera, game:GetService("RunService"), game:GetService("UserInputService")
+local Plrs, LP, Cam, RS, UIS = game:GetService("Players"), game:GetService("Players").LocalPlayer, workspace.CurrentCamera, game:GetService("RunService"), game:GetService("UserInputService")
 
-local FC = Instance.new("Frame")
+-- Создание безопасного FOV-круга
+local DS = Instance.new("ScreenGui", game:GetService("CoreGui"))
+local FC = Instance.new("Frame", DS)
 FC.Name = "FovCircle"; FC.AnchorPoint = Vector2.new(0.5,0.5); FC.BackgroundColor3 = Color3.fromRGB(255,75,75); FC.BackgroundTransparency = 0.96; FC.Visible = false
-FC.Parent = DS
 local FB = Instance.new("UIStroke", FC); FB.Color = Color3.fromRGB(255,75,75); FB.Thickness = 1.5; Instance.new("UICorner", FC).CornerRadius = UDim2.new(1,0)
 
 local function IsVis(char)
@@ -86,134 +28,112 @@ local function GetTarget()
     return t
 end
 
-local oldNamecall
-local function Init(isMob)
-    RS.RenderStepped:Connect(function()
-        if FC.Visible then
-            FC.Position = UDim2.fromOffset(UIS:GetMouseLocation().X, UIS:GetMouseLocation().Y)
+-- Логика функций
+RS.RenderStepped:Connect(function()
+    if FC.Visible then
+        FC.Position = UDim2.fromOffset(UIS:GetMouseLocation().X, UIS:GetMouseLocation().Y)
+        local t = GetTarget()
+        local clr = (t and t.Character and IsVis(t.Character)) and Color3.fromRGB(0,255,136) or Color3.fromRGB(255,75,75)
+        FC.BackgroundColor3 = clr; FB.Color = clr
+    end
+end)
+
+RS.RenderStepped:Connect(function()
+    if C.SA and UIS:IsMouseButtonPressed(Enum.MouseButton.LeftParameter) then
+        local t = GetTarget()
+        if t and t.Character and t.Character:FindFirstChild("Head") and IsVis(t.Character) then 
+            Cam.CFrame = CFrame.new(Cam.CFrame.Position, t.Character.Head.Position) 
+        end
+    end
+end)
+
+RS.Heartbeat:Connect(function()
+    local t = LP.Character and LP.Character:FindFirstChildOfClass("Tool")
+    if t and (C.NR or C.NS) then
+        for _, o in pairs(t:GetDescendants()) do
+            if o:IsA("ValueBase") or o:IsA("NumberValue") then
+                local n = o.Name:lower()
+                if C.NR and (n:find("recoil") or n:find("kick") or n:find("shak")) then o.Value = 0 end
+                if C.NS and (n:find("spread") or n:find("acc") or n:find("disp")) then o.Value = 0 end
+            end
+        end
+    end
+    if C.SH and LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") and LP.Character:FindFirstChild("Humanoid") and LP.Character.Humanoid.MoveDirection.Magnitude > 0 then
+        LP.Character.HumanoidRootPart.AssemblyLinearVelocity = Vector3.new(LP.Character.Humanoid.MoveDirection.X * 26, LP.Character.HumanoidRootPart.AssemblyLinearVelocity.Y, LP.Character.Humanoid.MoveDirection.Z * 26)
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(0.04)
+        if C.AF and LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
             local t = GetTarget()
-            local clr = (t and t.Character and IsVis(t.Character)) and Color3.fromRGB(0,255,136) or Color3.fromRGB(255,75,75)
-            FC.BackgroundColor3 = clr; FB.Color = clr
+            if t and t.Character and t.Character:FindFirstChild("Head") and IsVis(t.Character) and (LP.Character.HumanoidRootPart.Position - t.Character.Head.Position).Magnitude <= 1750 then
+                local tl = LP.Character:FindFirstChildOfClass("Tool")
+                if tl then tl:Activate(); task.wait(0.02); tl:Deactivate() end
+            end
         end
-    end)
-    if isMob then
-        RS.RenderStepped:Connect(function()
-            if C.SA and UIS:IsMouseButtonPressed(Enum.MouseButton.LeftParameter) then
-                local t = GetTarget()
-
-if t and t.Character and t.Character:FindFirstChild("Head") and IsVis(t.Character) then Cam.CFrame = CFrame.new(Cam.CFrame.Position, t.Character.Head.Position) end
-            end
-        end)
-    else
-        oldNamecall = hookmetamethod(game, "__namecall", function(Self, ...)
-            local m, args = getnamecallmethod(), {...}
-            if C.SA and not checkcaller() and (m == "FindPartOnRayWithIgnoreList" or m == "FindPartOnRay" or m == "Raycast") then
-                local t = GetTarget()
-                if t and t.Character and t.Character:FindFirstChild("Head") and IsVis(t.Character) then
-                    if m == "Raycast" then args = (t.Character.Head.Position - args).Unit * 1000 else args = Ray.new(Cam.CFrame.Position, (t.Character.Head.Position - Cam.CFrame.Position).Unit * 1000) end
-                end
-            end
-            return oldNamecall(Self, unpack(args))
-        end)
     end
-    RS.Heartbeat:Connect(function()
-        local t = LP.Character and LP.Character:FindFirstChildOfClass("Tool")
-        if t and (C.NR or C.NS) then
-            for _, o in pairs(t:GetDescendants()) do
-                if o:IsA("ValueBase") or o:IsA("NumberValue") then
-                    local n = o.Name:lower()
-                    if C.NR and (n:find("recoil") or n:find("kick") or n:find("shak")) then o.Value = 0 end
-                    if C.NS and (n:find("spread") or n:find("acc") or n:find("disp")) then o.Value = 0 end
-                end
-            end
-        end
-        if C.SH and LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") and LP.Character:FindFirstChild("Humanoid") and LP.Character.Humanoid.MoveDirection.Magnitude > 0 then
-            LP.Character.HumanoidRootPart.AssemblyLinearVelocity = Vector3.new(LP.Character.Humanoid.MoveDirection.X * 26, LP.Character.HumanoidRootPart.AssemblyLinearVelocity.Y, LP.Character.Humanoid.MoveDirection.Z * 26)
-        end
-    end)
-    task.spawn(function()
-        while true do
-            task.wait(0.04)
-            if C.AF and LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
-                local t = GetTarget()
-                if t and t.Character and t.Character:FindFirstChild("Head") and IsVis(t.Character) and (LP.Character.HumanoidRootPart.Position - t.Character.Head.Position).Magnitude <= 1750 then
-                    local tl = LP.Character:FindFirstChildOfClass("Tool")
-                    if tl then tl:Activate(); task.wait(0.02); tl:Deactivate() end
-                end
-            end
-        end
-    end)
-    UIS.JumpRequest:Connect(function()
-        if C.IJ and LP.Character and LP.Character:FindFirstChildOfClass("Humanoid") then LP.Character:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Jumping) end
-    end)
-    local PCache, LCache = {}, {}
-    local function UpdESP(part, txt, ty, id)
-        local cache = (ty == "P") and PCache or LCache
-        local bg = cache[id]
-        if not bg or not bg.Parent then
-            if bg then bg:Destroy() end
-            bg = Instance.new("BillboardGui", part); bg.AlwaysOnTop = true; bg.Size = UDim2.new(0,140,0,35); bg.StudsOffset = Vector3.new(0,3,0)
-            local l = Instance.new("TextLabel", bg); l.Name = "L"; l.BackgroundTransparency = 1; l.Size = UDim2.new(1,0,1,0); l.TextSize = 11; l.Font = Enum.Font.Code; l.TextColor3 = (ty == "P") and Color3.fromRGB(0,255,150) or Color3.fromRGB(255,210,0)
-            cache[id] = bg
-        end
-        bg.Enabled = true; bg.L.Text = txt
-    end
-    RS.Heartbeat:Connect(function()
-        if C.EP or C.EW then
-            for _, p in pairs(Plrs:GetPlayers()) do
-                if p ~= LP and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
+end)
 
-local d = math.floor((LP.Character.HumanoidRootPart.Position - p.Character.HumanoidRootPart.Position).Magnitude / 3.5)
-                    local tl = p.Character:FindFirstChildOfClass("Tool")
-                    local str = (C.EP and p.Name.." ["..math.floor(p.Character.Humanoid.Health).."HP] ("..d.."m)" or "")..(C.EW and "\n"..(tl and tl.Name or "Fists") or "")
-                    UpdESP(p.Character.HumanoidRootPart, str, "P", p.UserId)
-                elseif PCache[p.UserId] then PCache[p.UserId].Enabled = false end
-            end
-        else for _, g in pairs(PCache) do g.Enabled = false end end
-        if C.EB then
-            for _, o in pairs(workspace:GetChildren()) do
-                if o.Name:lower():find("backpack") or o.Name:lower():find("bag") or o:FindFirstChild("Loot") then
-                    local p = o:IsA("BasePart") and o or o:FindFirstChildOfClass("BasePart")
-                    if p then UpdESP(p, "🎒 Loot Backpack", "L", o:GetDebugId()) end
-                end
-            end
-        else for _, g in pairs(LCache) do g.Enabled = false end end
-    end)
+UIS.JumpRequest:Connect(function()
+    if C.IJ and LP.Character and LP.Character:FindFirstChildOfClass("Humanoid") then 
+        LP.Character:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Jumping) 
+    end
+end)
+
+local PCache, LCache = {}, {}
+local function UpdESP(part, txt, ty, id)
+    local cache = (ty == "P") and PCache or LCache
+    local bg = cache[id]
+    if not bg or not bg.Parent then
+        if bg then bg:Destroy() end
+        bg = Instance.new("BillboardGui", part); bg.AlwaysOnTop = true; bg.Size = UDim2.new(0,140,0,35); bg.StudsOffset = Vector3.new(0,3,0)
+        local l = Instance.new("TextLabel", bg); l.Name = "L"; l.BackgroundTransparency = 1; l.Size = UDim2.new(1,0,1,0); l.TextSize = 11; l.Font = Enum.Font.Code; l.TextColor3 = (ty == "P") and Color3.fromRGB(0,255,150) or Color3.fromRGB(255,210,0)
+        cache[id] = bg
+    end
+    bg.Enabled = true; bg.L.Text = txt
 end
 
-PBtn.MouseButton1Click:Connect(function()
-    DS:Destroy(); Init(false)
-    local lib = loadstring(game:HttpGet("https://githubusercontent.com"))()
-    local w = lib:CreateWindow({Name = "Vagrant | PC", Theme = "Default"})
-    local r = w:CreateTab({Name = "Rage"})
-    r:AddToggle({Name = "Silent Aimbot", Callback = function(s) C.SA = s; FC.Visible = s end})
-    r:AddSlider({Name = "FOV Size", Min = 10, Max = 500, Default = 100, Callback = function(v) C.FR = v; FC.Size = UDim2.fromOffset(v*2, v*2) end})
-    r:AddToggle({Name = "No Recoil", Callback = function(s) C.NR = s end})
-    r:AddToggle({Name = "No Spread", Callback = function(s) C.NS = s end})
-    r:AddToggle({Name = "Auto Fire", Callback = function(s) C.AF = s end})
-    local v = w:CreateTab({Name = "Visuals"})
-    v:AddToggle({Name = "ESP Players", Callback = function(s) C.EP = s end})
-    v:AddToggle({Name = "ESP Weapons", Callback = function(s) C.EW = s end})
-    v:AddToggle({Name = "ESP Backpacks", Callback = function(s) C.EB = s end})
-    local c = w:CreateTab({Name = "Character"})
-    c:AddToggle({Name = "Infinite Jump", Callback = function(s) C.IJ = s end}) c:AddToggle({Name = "Safe Speed", Callback = function(s) C.SH = s end})
+RS.Heartbeat:Connect(function()
+    if C.EP or C.EW then
+        for _, p in pairs(Plrs:GetPlayers()) do
+            if p ~= LP and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
+                local d = math.floor((LP.Character.HumanoidRootPart.Position - p.Character.HumanoidRootPart.Position).Magnitude / 3.5)
+                local tl = p.Character:FindFirstChildOfClass("Tool")
+                local str = (C.EP and p.Name.." ["..math.floor(p.Character.Humanoid.Health).."HP] ("..d.."m)" or "")..(C.EW and "\n"..(tl and tl.Name or "Fists") or "")
+                UpdESP(p.Character.HumanoidRootPart, str, "P", p.UserId)
+            elseif PCache[p.UserId] then PCache[p.UserId].Enabled = false end
+        end
+    else for _, g in pairs(PCache) do g.Enabled = false end end
+    if C.EB then
+        for _, o in pairs(workspace:GetChildren()) do
+            if o.Name:lower():find("backpack") or o.Name:lower():find("bag") or o:FindFirstChild("Loot") then
+                local p = o:IsA("BasePart") and o or o:FindFirstChildOfClass("BasePart")
+                if p then UpdESP(p, "🎒 Loot Backpack", "L", o:GetDebugId()) end
+            end
+        end
+    else for _, g in pairs(LCache) do g.Enabled = false end end
 end)
-MBtn.MouseButton1Click:Connect(function()
-DS:Destroy(); Init(true)
-local lib = loadstring(game:HttpGet('githubusercontent.com'))()
+
+-- СРАЗУ ЗАПУСКАЕМ КРУПНЫЙ И СТАБИЛЬНЫЙ ИНТЕРФЕЙС ДЛЯ МОБИЛОК
+local lib = loadstring(game:HttpGet('https://githubusercontent.com'))()
 local w = lib:MakeWindow({Name = "Vagrant | Mobile", HidePremium = true, SaveConfig = false})
+
 local r = lib:MakeTab({Name = "Rage", Icon = "rbxassetid://4483345906"})
 r:AddToggle({Name = "Silent Aimbot", Default = false, Callback = function(s) C.SA = s; FC.Visible = s end})
-r:AddSlider({Name = "FOV Size", Min = 10, Max = 500, Default = 100, Color = Color3.fromRGB(0,255,238), Increment = 5, Callback = function(v) C.FR = v; FC.Size = UDim2.fromOffset(v2, v2) end})
+r:AddSlider({Name = "FOV Size", Min = 10, Max = 500, Default = 100, Color = Color3.fromRGB(0,255,238), Increment = 5, Callback = function(v) C.FR = v; FC.Size = UDim2.fromOffset(v*2, v*2) end})
 r:AddToggle({Name = "No Recoil", Default = false, Callback = function(s) C.NR = s end})
 r:AddToggle({Name = "No Spread", Default = false, Callback = function(s) C.NS = s end})
 r:AddToggle({Name = "Auto Fire", Default = false, Callback = function(s) C.AF = s end})
+
 local v = lib:MakeTab({Name = "Visuals", Icon = "rbxassetid://4483345906"})
 v:AddToggle({Name = "ESP Players", Default = false, Callback = function(s) C.EP = s end})
 v:AddToggle({Name = "ESP Weapons", Default = false, Callback = function(s) C.EW = s end})
-v:AddToggle({ Name = "ESP Backpacks", Default = false, Callback = function(s) C.EB = s end})
+v:AddToggle({Name = "ESP Backpacks", Default = false, Callback = function(s) C.EB = s end})
+
 local c = lib:MakeTab({Name = "Character", Icon = "rbxassetid://4483345906"})
 c:AddToggle({Name = "Infinite Jump", Default = false, Callback = function(s) C.IJ = s end})
 c:AddToggle({Name = "Safe Speed", Default = false, Callback = function(s) C.SH = s end})
+
 lib:Init()
-end)
