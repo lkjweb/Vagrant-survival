@@ -1,139 +1,235 @@
-local C = {SA=false,FR=100,NR=false,NS=false,AF=false,EP=false,EB=false,EW=false,IJ=false,SH=false}
-local Plrs, LP, Cam, RS, UIS = game:GetService("Players"), game:GetService("Players").LocalPlayer, workspace.CurrentCamera, game:GetService("RunService"), game:GetService("UserInputService")
+local Config = {SA = false, FR = 100, NR = false, NS = false, AF = false, EP = false, EB = false, EW = false, IJ = false, SH = false}
+local Plrs, LP, Camera = game:GetService("Players"), game:GetService("Players").LocalPlayer, workspace.CurrentCamera or workspace:FindFirstChildOfClass("Camera")
+local RS, UIS, CG = game:GetService("RunService"), game:GetService("UserInputService"), game:GetService("CoreGui")
 
--- Создание безопасного FOV-круга
-local DS = Instance.new("ScreenGui", game:GetService("CoreGui"))
-local FC = Instance.new("Frame", DS)
-FC.Name = "FovCircle"; FC.AnchorPoint = Vector2.new(0.5,0.5); FC.BackgroundColor3 = Color3.fromRGB(255,75,75); FC.BackgroundTransparency = 0.96; FC.Visible = false
-local FB = Instance.new("UIStroke", FC); FB.Color = Color3.fromRGB(255,75,75); FB.Thickness = 1.5; Instance.new("UICorner", FC).CornerRadius = UDim2.new(1,0)
+local VIM = nil
+pcall(function() 
+    VIM = game:GetService("VirtualInputManager") 
+end)
+
+local SG = Instance.new("ScreenGui")
+SG.Name = "Arima_FOV"; SG.ResetOnSpawn = false
+if not pcall(function() SG.Parent = CG end) then SG.Parent = LP:WaitForChild("PlayerGui") end
+
+local FC = Instance.new("Frame", SG)
+FC.Name = "FovCircle"; FC.AnchorPoint = Vector2.new(0.5, 0.5); FC.BackgroundColor3 = Color3.fromRGB(255, 75, 75); FC.BackgroundTransparency = 0.96; FC.Visible = false; FC.Size = UDim2.fromOffset(Config.FR * 2, Config.FR * 2)
+local FB = Instance.new("UIStroke", FC); FB.Color = Color3.fromRGB(255, 75, 75); FB.Thickness = 1.5; Instance.new("UICorner", FC).CornerRadius = UDim2.new(1, 0)
+
+local Params = RaycastParams.new(); Params.FilterType = Enum.RaycastFilterType.Exclude
+workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function() Camera = workspace.CurrentCamera or workspace:FindFirstChildOfClass("Camera") end)
 
 local function IsVis(char)
-    local h = char:FindFirstChild("Head")
-    if not h then return false end
-    local p = RaycastParams.new(); p.FilterType = Enum.RaycastFilterType.Exclude; p.FilterDescendantsInstances = {LP.Character, char, Cam}
-    return workspace:Raycast(Cam.CFrame.Position, h.Position - Cam.CFrame.Position, p) == nil
+    if not char or not LP.Character or not Camera then return false end
+    local h, mh = char:FindFirstChild("Head"), LP.Character:FindFirstChild("Head")
+    if not h or not mh then return false end
+    Params.FilterDescendantsInstances = {LP.Character, char, Camera}
+    return workspace:Raycast(Camera.CFrame.Position, h.Position - Camera.CFrame.Position, Params) == nil
+end
+
+local ActiveTouches = {}
+UIS.TouchStarted:Connect(function(touch, processed) if not processed then table.insert(ActiveTouches, touch) end end)
+UIS.TouchEnded:Connect(function(touch) for i, t in ipairs(ActiveTouches) do if t == touch then table.remove(ActiveTouches, i) break end end end)
+
+local function GetInputPosition()
+    local primary = ActiveTouches[1]
+    if primary then return Vector2.new(primary.Position.X, primary.Position.Y) end
+    return UIS:GetMouseLocation()
 end
 
 local function GetTarget()
-    local t, maxD, mPos = nil, C.FR, UIS:GetMouseLocation()
+    local t, maxD, mPos = nil, Config.FR, GetInputPosition()
+    if not Camera then return nil end
     for _, p in pairs(Plrs:GetPlayers()) do
-        if p ~= LP and p.Character and p.Character:FindFirstChild("Head") and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
-            local sPos, onS = Cam:WorldToScreenPoint(p.Character.Head.Position)
-            if onS then
-                local d = (Vector2.new(sPos.X, sPos.Y) - mPos).Magnitude
-                if d < maxD then t, maxD = p, d end
+        if p ~= LP and p.Character then
+            local h, hum = p.Character:FindFirstChild("Head"), p.Character:FindFirstChildOfClass("Humanoid")
+            if h and hum and hum.Health > 0 then
+                local sPos, onS = Camera:WorldToScreenPoint(h.Position)
+                if onS then local d = (Vector2.new(sPos.X, sPos.Y) - mPos).Magnitude; if d < maxD then t, maxD = p, d end end
             end
         end
     end
     return t
 end
 
--- Логика функций
 RS.RenderStepped:Connect(function()
     if FC.Visible then
-        FC.Position = UDim2.fromOffset(UIS:GetMouseLocation().X, UIS:GetMouseLocation().Y)
-        local t = GetTarget()
-        local clr = (t and t.Character and IsVis(t.Character)) and Color3.fromRGB(0,255,136) or Color3.fromRGB(255,75,75)
+        local ip = GetInputPosition(); FC.Position = UDim2.fromOffset(ip.X, ip.Y)
+        local t = GetTarget(); local clr = (t and t.Character and IsVis(t.Character)) and Color3.fromRGB(0, 255, 136) or Color3.fromRGB(255, 75, 75)
         FC.BackgroundColor3 = clr; FB.Color = clr
     end
-end)
-
-RS.RenderStepped:Connect(function()
-    if C.SA and UIS:IsMouseButtonPressed(Enum.MouseButton.LeftParameter) then
+    if Config.SA and Camera and (UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) or #ActiveTouches > 0) then
         local t = GetTarget()
-        if t and t.Character and t.Character:FindFirstChild("Head") and IsVis(t.Character) then 
-            Cam.CFrame = CFrame.new(Cam.CFrame.Position, t.Character.Head.Position) 
-        end
+        if t and t.Character and t.Character:FindFirstChild("Head") and IsVis(t.Character) then Camera.CFrame = CFrame.new(Camera.CFrame.Position, t.Character.Head.Position) end
     end
 end)
 
 RS.Heartbeat:Connect(function()
-    local t = LP.Character and LP.Character:FindFirstChildOfClass("Tool")
-    if t and (C.NR or C.NS) then
-        for _, o in pairs(t:GetDescendants()) do
-            if o:IsA("ValueBase") or o:IsA("NumberValue") then
-                local n = o.Name:lower()
-                if C.NR and (n:find("recoil") or n:find("kick") or n:find("shak")) then o.Value = 0 end
-                if C.NS and (n:find("spread") or n:find("acc") or n:find("disp")) then o.Value = 0 end
+    local c = LP.Character; local tl = c and c:FindFirstChildOfClass("Tool")
+    if tl and (Config.NR or Config.NS) then
+        for _, o in pairs(tl:GetDescendants()) do
+            if o:IsA("NumberValue") or o:IsA("IntValue") then
+
+local n = o.Name:lower()
+                if Config.NR and (n:find("recoil") or n:find("kick") or n:find("shak")) then o.Value = 0 end
+                if Config.NS and (n:find("spread") or n:find("acc") or n:find("disp")) then o.Value = 0 end
             end
         end
     end
-    if C.SH and LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") and LP.Character:FindFirstChild("Humanoid") and LP.Character.Humanoid.MoveDirection.Magnitude > 0 then
-        LP.Character.HumanoidRootPart.AssemblyLinearVelocity = Vector3.new(LP.Character.Humanoid.MoveDirection.X * 26, LP.Character.HumanoidRootPart.AssemblyLinearVelocity.Y, LP.Character.Humanoid.MoveDirection.Z * 26)
-    end
+    local r, h = c and c:FindFirstChild("HumanoidRootPart"), c and c:FindFirstChildOfClass("Humanoid")
+    if Config.SH and r and h and h.MoveDirection.Magnitude > 0 then r.CFrame = r.CFrame + (h.MoveDirection * 0.16) end
 end)
 
 task.spawn(function()
     while true do
-        task.wait(0.04)
-        if C.AF and LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
+        task.wait(0.05); local c = LP.Character
+        if Config.AF and VIM and c and c:FindFirstChild("HumanoidRootPart") and c:FindFirstChildOfClass("Tool") then
             local t = GetTarget()
-            if t and t.Character and t.Character:FindFirstChild("Head") and IsVis(t.Character) and (LP.Character.HumanoidRootPart.Position - t.Character.Head.Position).Magnitude <= 1750 then
-                local tl = LP.Character:FindFirstChildOfClass("Tool")
-                if tl then tl:Activate(); task.wait(0.02); tl:Deactivate() end
+            if t and t.Character and t.Character:FindFirstChild("Head") and IsVis(t.Character) then
+                if (c.HumanoidRootPart.Position - t.Character.Head.Position).Magnitude <= 1750 then
+                    pcall(function() VIM:SendMouseButtonEvent(0, 0, 0, true, game, 0); task.wait(0.02); VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0) end)
+                end
             end
         end
     end
 end)
 
-UIS.JumpRequest:Connect(function()
-    if C.IJ and LP.Character and LP.Character:FindFirstChildOfClass("Humanoid") then 
-        LP.Character:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Jumping) 
-    end
-end)
+UIS.JumpRequest:Connect(function() local h = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid") if Config.IJ and h then pcall(function() h:ChangeState(Enum.HumanoidStateType.Jumping) end) end end)
 
-local PCache, LCache = {}, {}
 local function UpdESP(part, txt, ty, id)
-    local cache = (ty == "P") and PCache or LCache
-    local bg = cache[id]
-    if not bg or not bg.Parent then
-        if bg then bg:Destroy() end
-        bg = Instance.new("BillboardGui", part); bg.AlwaysOnTop = true; bg.Size = UDim2.new(0,140,0,35); bg.StudsOffset = Vector3.new(0,3,0)
-        local l = Instance.new("TextLabel", bg); l.Name = "L"; l.BackgroundTransparency = 1; l.Size = UDim2.new(1,0,1,0); l.TextSize = 11; l.Font = Enum.Font.Code; l.TextColor3 = (ty == "P") and Color3.fromRGB(0,255,150) or Color3.fromRGB(255,210,0)
-        cache[id] = bg
+    local uName = "ESP_" .. ty .. "_" .. tostring(id); local bg = part:FindFirstChild(uName)
+    if not bg then
+        bg = Instance.new("BillboardGui"); bg.Name = uName; bg.AlwaysOnTop = true; bg.Size = UDim2.new(0, 140, 0, 45); bg.StudsOffset = Vector3.new(0, 3, 0)
+        local l = Instance.new("TextLabel", bg); l.Name = "EspLabel"; l.BackgroundTransparency = 1; l.Size = UDim2.new(1, 0, 1, 0); l.TextSize = 11; l.Font = Enum.Font.Code
+        l.TextColor3 = (ty == "P") and Color3.fromRGB(0, 255, 150) or ((ty == "W") and Color3.fromRGB(255, 100, 100) or Color3.fromRGB(255, 210, 0))
+        bg.Parent = part
     end
-    bg.Enabled = true; bg.L.Text = txt
+    bg.Enabled = true; if bg:FindFirstChild("EspLabel") then bg.EspLabel.Text = txt end
 end
 
-RS.Heartbeat:Connect(function()
-    if C.EP or C.EW then
-        for _, p in pairs(Plrs:GetPlayers()) do
-            if p ~= LP and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
-                local d = math.floor((LP.Character.HumanoidRootPart.Position - p.Character.HumanoidRootPart.Position).Magnitude / 3.5)
-                local tl = p.Character:FindFirstChildOfClass("Tool")
-                local str = (C.EP and p.Name.." ["..math.floor(p.Character.Humanoid.Health).."HP] ("..d.."m)" or "")..(C.EW and "\n"..(tl and tl.Name or "Fists") or "")
-                UpdESP(p.Character.HumanoidRootPart, str, "P", p.UserId)
-            elseif PCache[p.UserId] then PCache[p.UserId].Enabled = false end
-        end
-    else for _, g in pairs(PCache) do g.Enabled = false end end
-    if C.EB then
-        for _, o in pairs(workspace:GetChildren()) do
+local function ClearESP(part, ty, id) if part then local bg = part:FindFirstChild("ESP_" .. ty .. "_" .. tostring(id)) if bg then bg:Destroy() end end end
+
+local ActiveBackpacks = {}
+local function DeepScan(root)
+    local found = {}
+    local function search(cur, depth)
+        if depth > 4 or not cur then return end
+        for _, o in ipairs(cur:GetChildren()) do
             if o.Name:lower():find("backpack") or o.Name:lower():find("bag") or o:FindFirstChild("Loot") then
                 local p = o:IsA("BasePart") and o or o:FindFirstChildOfClass("BasePart")
-                if p then UpdESP(p, "🎒 Loot Backpack", "L", o:GetDebugId()) end
+                if p then table.insert(found, {obj = o, part = p}) end
+            end
+            if o:IsA("Folder") or o:IsA("Model") then search(o, depth + 1) end
+        end
+    end
+    search(root, 1) return found
+end
+
+local function ScanBackpacks()
+    if not Config.EB then return end
+    local CurrentBags = {}
+    local bags = DeepScan(workspace)
+    for _, data in ipairs(bags) do CurrentBags[data.obj] = data.part; ActiveBackpacks[data.obj] = data.part; UpdESP(data.part, "🎒 Loot Backpack", "L", tostring(data.obj)) end
+    for obj, part in pairs(ActiveBackpacks) do if not CurrentBags[obj] then pcall(function() ClearESP(part, "L", tostring(obj)) end); ActiveBackpacks[obj] = nil end end
+end
+
+task.spawn(function() while true do task.wait(2.0); pcall(ScanBackpacks) end end)
+
+local PlayerPartsCache = {}
+local lastEspTime = 0
+RS.Heartbeat:Connect(function()
+    local now = os.clock(); if now - lastEspTime < 0.03 then return end lastEspTime = now
+    local mr = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+    if mr then
+        for _, p in pairs(Plrs:GetPlayers()) do
+
+if p ~= LP then
+                if p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") then
+                    local hrp, hum, tl = p.Character.HumanoidRootPart, p.Character.Humanoid, p.Character:FindFirstChildOfClass("Tool")
+                    PlayerPartsCache[p.UserId] = hrp
+                    if hum.Health > 0 then
+                        if Config.EP and Camera then UpdESP(hrp, p.Name .. " [" .. math.floor(hum.Health) .. "HP] (" .. math.floor((mr.Position - hrp.Position).Magnitude / 3.5) .. "m)", "P", p.UserId) else ClearESP(hrp, "P", p.UserId) end
+                        if Config.EW then if tl then UpdESP(hrp, "\n\nWeapon: " .. tl.Name, "W", p.UserId) else ClearESP(hrp, "W", p.UserId) end else ClearESP(hrp, "W", p.UserId) end
+                    else ClearESP(hrp, "P", p.UserId); ClearESP(hrp, "W", p.UserId) end
+                else
+                    local cached = PlayerPartsCache[p.UserId]; if cached then ClearESP(cached, "P", p.UserId); ClearESP(cached, "W", p.UserId); PlayerPartsCache[p.UserId] = nil end
+                end
             end
         end
-    else for _, g in pairs(LCache) do g.Enabled = false end end
+    end
+    if not Config.EB then for obj, part in pairs(ActiveBackpacks) do pcall(function() ClearESP(part, "L", tostring(obj)) end) end; ActiveBackpacks = {} end
 end)
 
--- СРАЗУ ЗАПУСКАЕМ КРУПНЫЙ И СТАБИЛЬНЫЙ ИНТЕРФЕЙС ДЛЯ МОБИЛОК
-local lib = loadstring(game:HttpGet('https://githubusercontent.com'))()
-local w = lib:MakeWindow({Name = "Vagrant | Mobile", HidePremium = true, SaveConfig = false})
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local Window = Rayfield:CreateWindow({
+    Name = "Arima Hub | Vagrant Survival",
+    LoadingTitle = "Загрузка софта...",
+    LoadingSubtitle = "by telegram: @lag_me",
+    ConfigurationSaving = {Enabled = false},
+    KeySystem = false
+})
 
-local r = lib:MakeTab({Name = "Rage", Icon = "rbxassetid://4483345906"})
-r:AddToggle({Name = "Silent Aimbot", Default = false, Callback = function(s) C.SA = s; FC.Visible = s end})
-r:AddSlider({Name = "FOV Size", Min = 10, Max = 500, Default = 100, Color = Color3.fromRGB(0,255,238), Increment = 5, Callback = function(v) C.FR = v; FC.Size = UDim2.fromOffset(v*2, v*2) end})
-r:AddToggle({Name = "No Recoil", Default = false, Callback = function(s) C.NR = s end})
-r:AddToggle({Name = "No Spread", Default = false, Callback = function(s) C.NS = s end})
-r:AddToggle({Name = "Auto Fire", Default = false, Callback = function(s) C.AF = s end})
+local r = Window:CreateTab("Rage")
 
-local v = lib:MakeTab({Name = "Visuals", Icon = "rbxassetid://4483345906"})
-v:AddToggle({Name = "ESP Players", Default = false, Callback = function(s) C.EP = s end})
-v:AddToggle({Name = "ESP Weapons", Default = false, Callback = function(s) C.EW = s end})
-v:AddToggle({Name = "ESP Backpacks", Default = false, Callback = function(s) C.EB = s end})
+r:CreateToggle({
+    Name = "Camera Lock Aimbot",
+    CurrentValue = false,
+    Callback = function(v) Config.SA = v; FC.Visible = v end
+})
 
-local c = lib:MakeTab({Name = "Character", Icon = "rbxassetid://4483345906"})
-c:AddToggle({Name = "Infinite Jump", Default = false, Callback = function(s) C.IJ = s end})
-c:AddToggle({Name = "Safe Speed", Default = false, Callback = function(s) C.SH = s end})
+r:CreateSlider({
+    Name = "FOV Size",
+    Min = 10,
+    Max = 500,
+    CurrentValue = 100,
+    Increment = 5,
+    Callback = function(v) Config.FR = v; FC.Size = UDim2.fromOffset(v * 2, v * 2) end
+})
 
-lib:Init()
+r:CreateToggle({
+    Name = "No Recoil (Без отдачи)",
+    CurrentValue = false,
+    Callback = function(v) Config.NR = v end
+})
+
+r:CreateToggle({
+    Name = "No Spread (Без разброса)",
+    CurrentValue = false,
+    Callback = function(v) Config.NS = v end
+})
+
+r:CreateToggle({
+    Name = "Auto Fire (Автовыстрел)",
+    CurrentValue = false, Callback = function(v) Config.AF = v end
+})
+local visuals = Window:CreateTab("Visuals")
+visuals:CreateToggle({
+Name = "ESP Players (Игроки)",
+CurrentValue = false,
+Callback = function(v) Config.EP = v end
+})
+visuals:CreateToggle({
+Name = "ESP Active Weapons (Оружие)",
+CurrentValue = false,
+Callback = function(v) Config.EW = v end
+})
+visuals:CreateToggle({
+Name = "ESP Backpacks (Рюкзаки лута)",
+CurrentValue = false,
+Callback = function(v) Config.EB = v end
+})
+local char = Window:CreateTab("Character")
+char:CreateToggle({
+Name = "Infinite Jump (Бесконечный прыжок)",
+CurrentValue = false,
+Callback = function(v) Config.IJ = v end
+})
+char:CreateToggle({
+Name = "Speed Modification x1.5",
+CurrentValue = false,
+Callback = function(v) Config.SH = v end
+})
+Rayfield:Notify({
+Title = "Arima Hub",
+Content = "Интерфейс успешно загружен! Создатель @lag_me",
+Duration = 5
+})
